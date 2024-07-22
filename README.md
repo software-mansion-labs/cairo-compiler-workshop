@@ -100,6 +100,88 @@ Do not forget to update lexer tests and make sure they pass!
 
 # Chapter 3: Testing framework
 
+`crates/cairo-lang-semantic/src/expr/test.rs`:
+
+```rust
+cairo_lang_test_utils::test_file_test!(
+    expr_diagnostics,
+    "src/expr/test_data",
+
+    {
+        assignment: "assignment",
+        attributes: "attributes",
+        constant: "constant",
+        ...
+    },
+    test_function_diagnostics
+);
+
+pub fn test_function_diagnostics(
+    inputs: &OrderedHashMap<String, String>,
+    args: &OrderedHashMap<String, String>,
+) -> TestRunnerResult {
+    let db = &SemanticDatabaseForTesting::default();
+
+    let diagnostics = setup_test_function_ex(
+        db,
+        inputs["function"].as_str(),
+        inputs["function_name"].as_str(),
+        inputs["module_code"].as_str(),
+        inputs.get("crate_settings").map(|x| x.as_str()),
+    )
+        .get_diagnostics();
+    let error = verify_diagnostics_expectation(args, &diagnostics);
+
+    TestRunnerResult {
+        outputs: OrderedHashMap::from([("expected_diagnostics".into(), diagnostics)]),
+        error,
+    }
+}
+```
+
+`crates/cairo-lang-semantic/src/expr/test_data/attributes`:
+
+```
+//! > Test instantiation.
+
+//! > test_runner_name
+test_function_diagnostics(expect_diagnostics: true)
+
+//! > function
+fn foo() {
+    MyStruct {};
+    MyEnum::a(3);
+}
+
+//! > function_name
+foo
+
+//! > module_code
+#[phantom]
+struct MyStruct {}
+
+#[phantom]
+enum MyEnum {
+    a: felt252
+}
+
+//! > expected_diagnostics
+error: Can not create instances of phantom types.
+ --> lib.cairo:9:5
+    MyStruct {};
+    ^*********^
+
+error: Can not create instances of phantom types.
+ --> lib.cairo:10:5
+    MyEnum::a(3);
+    ^**********^
+
+
+//! > ==========================================================================
+
+...
+```
+
 # Exercise 3: Parser
 
 **Teach the Cairo parser to process `caesar(...)` expressions.**
@@ -108,6 +190,49 @@ Do not forget to add partial tree tests!
 Try to think of as many edge cases as possible.
 
 # Chapter 4: Salsa
+
+> Salsa is a Rust framework for writing incremental, on-demand programs -- these are programs that want to adapt to
+> changes in their inputs, continuously producing a new output that is up-to-date. Salsa is based on the incremental
+> recompilation techniques that we built for rustc, and many (but not all) of its users are building compilers or other
+> similar tooling.
+
+> [!WARNING]
+> Cairo compiler is using Salsa `0.16.1`.
+> This version is quite old and the API has changed a lot since then.
+> Especially, the hosted Salsa Book is now describing the total rewrite of Salsa: Salsa 3, formerly Salsa 2022.
+>
+> You can browse the old book here: <https://github.com/salsa-rs/salsa/tree/754eea8b5f8a31b1100ba313d59e41260b494225>
+
+## Key idea
+
+The key idea of `salsa` is that you define your program as a set of
+**queries**. Every query is used like a function `K -> V` that maps from
+some key of type `K` to a value of type `V`. Queries come in two basic
+varieties:
+
+- **Inputs**: the base inputs to your system. You can change these
+  whenever you like.
+- **Functions**: pure functions (no side effects) that transform your
+  inputs into other values. The results of queries are memoized to
+  avoid recomputing them a lot. When you make changes to the inputs,
+  we'll figure out (fairly intelligently) when we can re-use these
+  memoized values and when we have to recompute them.
+
+## How to use Salsa in three easy steps
+
+Using Salsa is as easy as 1, 2, 3...
+
+1. Define one or more **query groups** that contain the inputs
+   and queries you will need. We'll start with one such group, but
+   later on you can use more than one to break up your system into
+   components (or spread your code across crates).
+2. Define the **query functions** where appropriate.
+3. Define the **database**, which contains the storage for all
+   the inputs/queries you will be using. The query struct will contain
+   the storage for all of the inputs/queries and may also contain
+   anything else that your code needs (e.g., configuration data).
+
+## Salsa use in Cairo compiler
 
 ```rust
 #[salsa::database(
@@ -153,7 +278,6 @@ outdated:
   into the incremental algorithm and explains -- at a high-level -- how Salsa is
   implemented.
 
-
 # Exercise 4: Semantic model
 
 **Implement semantic model for the `caesar(...)` expression.**
@@ -192,7 +316,8 @@ pub struct AnalysisDatabase;
 
 Add a test to verify your solution works!
 
-With 3R Caesar cipher, the short string `'foobar'` (`112628796121458` as felt) encrypts to `'irredu'` (`115940266435701` as felt).
+With 3R Caesar cipher, the short string `'foobar'` (`112628796121458` as felt) encrypts to `'irredu'` (`115940266435701`
+as felt).
 
 > [!TIP]
 > Check out `lower_expr_literal_helper`.
