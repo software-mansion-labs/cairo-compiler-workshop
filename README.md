@@ -48,6 +48,8 @@ Here are some protips from a seasoned compiler contributor:
 
 # Chapter 1: Introduction, compiler architecture
 
+TODO
+
 # Exercise 1: Adding new grammar production
 
 Thorough this workshop we will do a set exercises which will introduce you to the Cairo compiler codebase.
@@ -89,6 +91,8 @@ Make sure to regenerate files in `crates/cairo-lang-syntax` and make your code c
 No need to add any tests at this stage.
 
 # Chapter 2: Parser
+
+TODO
 
 # Exercise 2: Lexer
 
@@ -309,6 +313,11 @@ Don't forget about adding tests! Just a happy-path is fine for us here.
 )]
 pub struct AnalysisDatabase;
 ```
+
+1. CairoLS ends on the semantic model.
+2. It uses its own Salsa database, `AnalysisDatabase`, which has a subset of compiler queries, but adds some extra ones.
+3. CairoLS is doing a lot of reverse queries, i.e. it is asking for things bottom-top, which is not happening in the compiler.
+4. The usual flow is code location → AST → semantic model → analysis → semantic model → AST → code location. 
 
 # Exercise 5: Lowering
 
