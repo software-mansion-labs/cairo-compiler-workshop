@@ -46,7 +46,7 @@ Here are some protips from a seasoned compiler contributor:
     * Familiarize with [git spr](https://github.com/ejoffe/spr).
     * Otherwise, you're out of luck and familiarize with `git rebase`.
 
-# TODO Introduction, architecture
+# Chapter 1: Introduction, compiler architecture
 
 # Exercise 1: Adding new grammar production
 
@@ -88,6 +88,8 @@ The definition file is located at: `crates/cairo-lang-syntax-codegen/src/cairo_s
 Make sure to regenerate files in `crates/cairo-lang-syntax` and make your code compile.
 No need to add any tests at this stage.
 
+# Chapter 2: Parser
+
 # Exercise 2: Lexer
 
 Now we need to teach our lexer to recognize the new syntax, because we've added a new keyword.
@@ -96,9 +98,7 @@ Now we need to teach our lexer to recognize the new syntax, because we've added 
 
 Do not forget to update lexer tests and make sure they pass!
 
-# TODO Parser
-
-# TODO Fixture testy
+# Chapter 3: Testing framework
 
 # Exercise 3: Parser
 
@@ -107,7 +107,52 @@ Do not forget to update lexer tests and make sure they pass!
 Do not forget to add partial tree tests!
 Try to think of as many edge cases as possible.
 
-# TODO Salsa
+# Chapter 4: Salsa
+
+```rust
+#[salsa::database(
+    DefsDatabase,
+    FilesDatabase,
+    LoweringDatabase,
+    ParserDatabase,
+    SemanticDatabase,
+    SierraGenDatabase,
+    SyntaxDatabase
+)]
+pub struct RootDatabase;
+```
+
+```rust
+#[salsa::query_group(SyntaxDatabase)]
+pub trait SyntaxGroup: FilesGroup + Upcast<dyn FilesGroup> {
+    #[salsa::interned]
+    fn intern_green(&self, field: Arc<GreenNode>) -> GreenId;
+    #[salsa::interned]
+    fn intern_stable_ptr(&self, field: SyntaxStablePtr) -> SyntaxStablePtrId;
+
+    /// Returns the children of the given node.
+    fn get_children(&self, node: SyntaxNode) -> Arc<Vec<SyntaxNode>>;
+}
+```
+
+## Homework
+
+Watch cool videos about Salsa and try to better understand how it works.
+
+There is currently one video available on the newest version of Salsa:
+
+- [Salsa Architecture Walkthrough](https://www.youtube.com/watch?v=vrnNvAAoQFk),
+  which covers many aspects of the redesigned architecture.
+
+There are also two videos on the older version Salsa, but they are rather
+outdated:
+
+- [How Salsa Works](https://youtu.be/_muY4HjSqVw), which gives a high-level
+  introduction to the key concepts involved and shows how to use Salsa;
+- [Salsa In More Depth](https://www.youtube.com/watch?v=i_IhACacPRY), which digs
+  into the incremental algorithm and explains -- at a high-level -- how Salsa is
+  implemented.
+
 
 # Exercise 4: Semantic model
 
@@ -124,6 +169,22 @@ Don't forget about adding tests! Just a happy-path is fine for us here.
 > [!TIP]
 > You will likely stumble upon a cryptic compilation error here.
 > You will have to duplicate some line in some macro.
+
+# Chapter 5: CairoLS
+
+```rust
+/// The Cairo compiler Salsa database tailored for language server usage.
+#[salsa::database(
+    DefsDatabase,
+    FilesDatabase,
+    LoweringDatabase,
+    ParserDatabase,
+    SemanticDatabase,
+    SyntaxDatabase,
+    DocDatabase
+)]
+pub struct AnalysisDatabase;
+```
 
 # Exercise 5: Lowering
 
@@ -149,9 +210,10 @@ fn caesar(secret: &BigInt) -> BigInt {
 }
 ```
 
-# Sierra generation in a nutshell
+# Chapter 6: Sierra generation in a nutshell
 
-- I have a happy message for all of you!
+- This is implemented in the `SierraGen` Salsa group.
+- But! I have a happy message for all of you!
 - I don't know how it works, and you don't need to know it either. 🥳
 
 # Exercise 6: The grand finale: an end-to-end test
