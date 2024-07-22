@@ -1,0 +1,274 @@
+Subject: [PATCH] parser
+---
+Index: crates/cairo-lang-parser/src/parser.rs
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/crates/cairo-lang-parser/src/parser.rs b/crates/cairo-lang-parser/src/parser.rs
+--- a/crates/cairo-lang-parser/src/parser.rs	(revision 9b586546f12c96a1cdeb0851ee977357a63ee8cb)
++++ b/crates/cairo-lang-parser/src/parser.rs	(revision a62a0bbb2259f95fcdc904ab373d8b8834b98c28)
+@@ -1202,6 +1202,7 @@
+             SyntaxKind::TerminalOrOr if lbrace_allowed == LbraceAllowed::Allow => {
+                 Ok(self.expect_closure_expr_nullary().into())
+             }
++            SyntaxKind::TerminalCaesar => Ok(self.expect_caesar_expr().into()),
+ 
+             _ => {
+                 // TODO(yuval): report to diagnostics.
+@@ -1750,6 +1751,20 @@
+         ExprClosure::new_green(self.db, wrapper, return_type_clause, optional_no_panic, expr)
+     }
+ 
++    /// Assumes the current token is `caesar`.
++    /// Expected pattern: `caesar ( <short_string> )`.
++    fn expect_caesar_expr(&mut self) -> ExprCaesarGreen {
++        let caesar_kw = self.take::<TerminalCaesar>();
++        let lparen = self.parse_token::<TerminalLParen>();
++        let string = if self.peek().kind == SyntaxKind::TerminalShortString {
++            self.take_terminal_short_string()
++        } else {
++            self.create_and_report_missing_terminal::<TerminalShortString>()
++        };
++        let rparen = self.parse_token::<TerminalRParen>();
++        ExprCaesar::new_green(self.db, caesar_kw, lparen, string, rparen)
++    }
++
+     /// Assumes the current token is LBrack.
+     /// Expected pattern: `\[<expr>; <expr>\]`.
+     fn expect_fixed_size_array_expr(&mut self) -> ExprFixedSizeArrayGreen {
+Index: crates/cairo-lang-parser/src/parser_test.rs
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/crates/cairo-lang-parser/src/parser_test.rs b/crates/cairo-lang-parser/src/parser_test.rs
+--- a/crates/cairo-lang-parser/src/parser_test.rs	(revision 9b586546f12c96a1cdeb0851ee977357a63ee8cb)
++++ b/crates/cairo-lang-parser/src/parser_test.rs	(revision a62a0bbb2259f95fcdc904ab373d8b8834b98c28)
+@@ -190,6 +190,7 @@
+         generic_params: "generic_params",
+         while_: "while",
+         for_: "for",
++        caesar: "caesar",
+ },
+     test_partial_parser_tree
+ );
+Index: crates/cairo-lang-parser/src/parser_test_data/partial_trees/caesar
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/crates/cairo-lang-parser/src/parser_test_data/partial_trees/caesar b/crates/cairo-lang-parser/src/parser_test_data/partial_trees/caesar
+new file mode 100644
+--- /dev/null	(revision a62a0bbb2259f95fcdc904ab373d8b8834b98c28)
++++ b/crates/cairo-lang-parser/src/parser_test_data/partial_trees/caesar	(revision a62a0bbb2259f95fcdc904ab373d8b8834b98c28)
+@@ -0,0 +1,209 @@
++//! > Test caesar simple.
++
++//! > test_runner_name
++test_partial_parser_tree(expect_diagnostics: false)
++
++//! > cairo_code
++fn test() {
++    let result = caesar ('hello');
++}
++
++//! > top_level_kind
++ExprCaesar
++
++//! > ignored_kinds
++
++//! > expected_tree
++└── Top level kind: ExprCaesar
++    ├── caesar_kw (kind: TokenCaesar): 'caesar'
++    ├── lparen (kind: TokenLParen): '('
++    ├── short_string (kind: TokenShortString): ''hello''
++    └── rparen (kind: TokenRParen): ')'
++
++//! > expected_diagnostics
++
++//! > ==========================================================================
++
++//! > Test caesar in binary expression.
++
++//! > test_runner_name
++test_partial_parser_tree(expect_diagnostics: false)
++
++//! > cairo_code
++fn test() {
++    let result = 1 + caesar ('hello') + 2;
++}
++
++//! > top_level_kind
++ExprCaesar
++
++//! > ignored_kinds
++
++//! > expected_tree
++└── Top level kind: ExprCaesar
++    ├── caesar_kw (kind: TokenCaesar): 'caesar'
++    ├── lparen (kind: TokenLParen): '('
++    ├── short_string (kind: TokenShortString): ''hello''
++    └── rparen (kind: TokenRParen): ')'
++
++//! > expected_diagnostics
++
++//! > ==========================================================================
++
++//! > Test caesar missing argument.
++
++//! > test_runner_name
++test_partial_parser_tree(expect_diagnostics: true)
++
++//! > cairo_code
++fn test() {
++    let result = caesar();
++}
++
++//! > top_level_kind
++ExprCaesar
++
++//! > ignored_kinds
++
++//! > expected_tree
++└── Top level kind: ExprCaesar
++    ├── caesar_kw (kind: TokenCaesar): 'caesar'
++    ├── lparen (kind: TokenLParen): '('
++    ├── short_string: Missing
++    └── rparen (kind: TokenRParen): ')'
++
++//! > expected_diagnostics
++error: Missing token TerminalShortString.
++ --> dummy_file.cairo:2:25
++    let result = caesar();
++                        ^
++
++//! > ==========================================================================
++
++//! > Test caesar only keyword.
++
++//! > test_runner_name
++test_partial_parser_tree(expect_diagnostics: true)
++
++//! > cairo_code
++fn test() {
++    let result = caesar;
++}
++
++//! > top_level_kind
++ExprCaesar
++
++//! > ignored_kinds
++
++//! > expected_tree
++└── Top level kind: ExprCaesar
++    ├── caesar_kw (kind: TokenCaesar): 'caesar'
++    ├── lparen: Missing
++    ├── short_string: Missing
++    └── rparen: Missing
++
++//! > expected_diagnostics
++error: Missing token TerminalLParen.
++ --> dummy_file.cairo:2:24
++    let result = caesar;
++                       ^
++
++error: Missing token TerminalShortString.
++ --> dummy_file.cairo:2:24
++    let result = caesar;
++                       ^
++
++error: Missing token TerminalRParen.
++ --> dummy_file.cairo:2:24
++    let result = caesar;
++                       ^
++
++//! > ==========================================================================
++
++//! > Test caesar with multiple arguments.
++
++//! > test_runner_name
++test_partial_parser_tree(expect_diagnostics: true)
++
++//! > cairo_code
++fn test() {
++    let result = caesar('hello', 1);
++}
++
++//! > top_level_kind
++ExprCaesar
++
++//! > ignored_kinds
++
++//! > expected_tree
++└── Top level kind: ExprCaesar
++    ├── caesar_kw (kind: TokenCaesar): 'caesar'
++    ├── lparen (kind: TokenLParen): '('
++    ├── short_string (kind: TokenShortString): ''hello''
++    └── rparen: Missing
++
++//! > expected_diagnostics
++error: Missing token TerminalRParen.
++ --> dummy_file.cairo:2:32
++    let result = caesar('hello', 1);
++                               ^
++
++error: Missing token TerminalSemicolon.
++ --> dummy_file.cairo:2:32
++    let result = caesar('hello', 1);
++                               ^
++
++error: Skipped tokens. Expected: statement.
++ --> dummy_file.cairo:2:32
++    let result = caesar('hello', 1);
++                               ^
++
++error: Skipped tokens. Expected: statement.
++ --> dummy_file.cairo:2:35
++    let result = caesar('hello', 1);
++                                  ^^
++
++//! > ==========================================================================
++
++//! > Test caesar with non-short-string argument.
++
++//! > test_runner_name
++test_partial_parser_tree(expect_diagnostics: true)
++
++//! > cairo_code
++fn test() {
++    let result = caesar("hello");
++}
++
++//! > top_level_kind
++ExprCaesar
++
++//! > ignored_kinds
++
++//! > expected_tree
++└── Top level kind: ExprCaesar
++    ├── caesar_kw (kind: TokenCaesar): 'caesar'
++    ├── lparen (kind: TokenLParen): '('
++    ├── short_string: Missing
++    └── rparen: Missing
++
++//! > expected_diagnostics
++error: Missing token TerminalShortString.
++ --> dummy_file.cairo:2:25
++    let result = caesar("hello");
++                        ^
++
++error: Missing token TerminalRParen.
++ --> dummy_file.cairo:2:25
++    let result = caesar("hello");
++                        ^
++
++error: Missing token TerminalSemicolon.
++ --> dummy_file.cairo:2:25
++    let result = caesar("hello");
++                        ^
++
++error: Skipped tokens. Expected: statement.
++ --> dummy_file.cairo:2:32
++    let result = caesar("hello");
++                               ^^

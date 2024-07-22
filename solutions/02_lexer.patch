@@ -1,0 +1,57 @@
+Subject: [PATCH] lexer
+---
+Index: crates/cairo-lang-parser/src/lexer.rs
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/crates/cairo-lang-parser/src/lexer.rs b/crates/cairo-lang-parser/src/lexer.rs
+--- a/crates/cairo-lang-parser/src/lexer.rs	(revision dfe3c6b70d27eb51e290a77941dcc1fbfb27b43e)
++++ b/crates/cairo-lang-parser/src/lexer.rs	(revision 9b586546f12c96a1cdeb0851ee977357a63ee8cb)
+@@ -211,6 +211,7 @@
+             "for" => TokenKind::For,
+             "nopanic" => TokenKind::NoPanic,
+             "pub" => TokenKind::Pub,
++            "caesar" => TokenKind::Caesar,
+             "_" => TokenKind::Underscore,
+             _ => TokenKind::Identifier,
+         }
+@@ -371,6 +372,7 @@
+     Implicits,
+     NoPanic,
+     Pub,
++    Caesar,
+ 
+     // Modifiers.
+     Ref,
+@@ -505,5 +507,6 @@
+         TokenKind::MatchArrow => SyntaxKind::TerminalMatchArrow,
+         TokenKind::BadCharacters => SyntaxKind::TerminalBadCharacters,
+         TokenKind::EndOfFile => SyntaxKind::TerminalEndOfFile,
++        TokenKind::Caesar => SyntaxKind::TerminalCaesar,
+     }
+ }
+Index: crates/cairo-lang-parser/src/lexer_test.rs
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/crates/cairo-lang-parser/src/lexer_test.rs b/crates/cairo-lang-parser/src/lexer_test.rs
+--- a/crates/cairo-lang-parser/src/lexer_test.rs	(revision dfe3c6b70d27eb51e290a77941dcc1fbfb27b43e)
++++ b/crates/cairo-lang-parser/src/lexer_test.rs	(revision 9b586546f12c96a1cdeb0851ee977357a63ee8cb)
+@@ -61,6 +61,7 @@
+         SyntaxKind::TerminalBreak => vec!["break"],
+         SyntaxKind::TerminalElse => vec!["else"],
+         SyntaxKind::TerminalUse => vec!["use"],
++        SyntaxKind::TerminalCaesar => vec!["caesar"],
+         SyntaxKind::TerminalAnd => vec!["&"],
+         SyntaxKind::TerminalAndAnd => vec!["&&"],
+         SyntaxKind::TerminalAt => vec!["@"],
+@@ -179,6 +180,7 @@
+         SyntaxKind::TerminalEndOfFile,
+         SyntaxKind::TerminalShortString,
+         SyntaxKind::TerminalString,
++        SyntaxKind::TerminalCaesar,
+     ]
+ }
+ 

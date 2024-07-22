@@ -1,0 +1,502 @@
+Subject: [PATCH] syntax spec
+---
+Index: crates/cairo-lang-semantic/src/expr/compute.rs
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/crates/cairo-lang-semantic/src/expr/compute.rs b/crates/cairo-lang-semantic/src/expr/compute.rs
+--- a/crates/cairo-lang-semantic/src/expr/compute.rs	(revision d0273bcc88a14c39fe61d76da7860eb25857ea83)
++++ b/crates/cairo-lang-semantic/src/expr/compute.rs	(revision dfe3c6b70d27eb51e290a77941dcc1fbfb27b43e)
+@@ -359,6 +359,7 @@
+         ast::Expr::FixedSizeArray(expr) => compute_expr_fixed_size_array_semantic(ctx, expr),
+         ast::Expr::For(expr) => compute_expr_for_semantic(ctx, expr),
+         ast::Expr::Closure(expr) => compute_expr_closure_semantic(ctx, expr),
++        ast::Expr::Caesar(_) => todo!(),
+     }
+ }
+ 
+Index: crates/cairo-lang-syntax-codegen/src/cairo_spec.rs
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/crates/cairo-lang-syntax-codegen/src/cairo_spec.rs b/crates/cairo-lang-syntax-codegen/src/cairo_spec.rs
+--- a/crates/cairo-lang-syntax-codegen/src/cairo_spec.rs	(revision d0273bcc88a14c39fe61d76da7860eb25857ea83)
++++ b/crates/cairo-lang-syntax-codegen/src/cairo_spec.rs	(revision dfe3c6b70d27eb51e290a77941dcc1fbfb27b43e)
+@@ -39,6 +39,7 @@
+         .node("Indexed")
+         .node("InlineMacro")
+         .node("FixedSizeArray")
++        .node("Caesar")
+     )
+     .add_separated_list("ExprList", "Expr", "TerminalComma")
+     .add_struct(StructBuilder::new("Arg")
+@@ -80,6 +81,12 @@
+         .node("lparen", "TerminalLParen")
+         .node("expr", "Expr")
+         .node("rparen", "TerminalRParen")
++    )
++    .add_struct(StructBuilder::new("ExprCaesar")
++        .node("caesar_kw", "TerminalCaesar")
++        .node("lparen", "TerminalLParen")
++        .node("short_string", "TerminalShortString")
++        .node("rparen", "TerminalRParen")
+     )
+     .add_struct(StructBuilder::new("ExprUnary").node("op", "UnaryOperator").node("expr", "Expr"))
+     .add_enum(EnumBuilder::new("UnaryOperator")
+@@ -796,6 +803,7 @@
+     .add_token_and_terminal("ShortString")
+     .add_token_and_terminal("String")
+     .add_keyword_token_and_terminal("As")
++    .add_keyword_token_and_terminal("Caesar")
+     .add_keyword_token_and_terminal("Const")
+     .add_keyword_token_and_terminal("Else")
+     .add_keyword_token_and_terminal("Enum")
+Index: crates/cairo-lang-syntax/src/node/ast.rs
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/crates/cairo-lang-syntax/src/node/ast.rs b/crates/cairo-lang-syntax/src/node/ast.rs
+--- a/crates/cairo-lang-syntax/src/node/ast.rs	(revision d0273bcc88a14c39fe61d76da7860eb25857ea83)
++++ b/crates/cairo-lang-syntax/src/node/ast.rs	(revision dfe3c6b70d27eb51e290a77941dcc1fbfb27b43e)
+@@ -245,6 +245,7 @@
+     Indexed(ExprIndexed),
+     InlineMacro(ExprInlineMacro),
+     FixedSizeArray(ExprFixedSizeArray),
++    Caesar(ExprCaesar),
+     Missing(ExprMissing),
+ }
+ #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+@@ -381,6 +382,11 @@
+ impl From<ExprFixedSizeArrayPtr> for ExprPtr {
+     fn from(value: ExprFixedSizeArrayPtr) -> Self {
+         Self(value.0)
++    }
++}
++impl From<ExprCaesarPtr> for ExprPtr {
++    fn from(value: ExprCaesarPtr) -> Self {
++        Self(value.0)
+     }
+ }
+ impl From<ExprMissingPtr> for ExprPtr {
+@@ -506,6 +512,11 @@
+ impl From<ExprFixedSizeArrayGreen> for ExprGreen {
+     fn from(value: ExprFixedSizeArrayGreen) -> Self {
+         Self(value.0)
++    }
++}
++impl From<ExprCaesarGreen> for ExprGreen {
++    fn from(value: ExprCaesarGreen) -> Self {
++        Self(value.0)
+     }
+ }
+ impl From<ExprMissingGreen> for ExprGreen {
+@@ -569,6 +580,7 @@
+             SyntaxKind::ExprFixedSizeArray => {
+                 Expr::FixedSizeArray(ExprFixedSizeArray::from_syntax_node(db, node))
+             }
++            SyntaxKind::ExprCaesar => Expr::Caesar(ExprCaesar::from_syntax_node(db, node)),
+             SyntaxKind::ExprMissing => Expr::Missing(ExprMissing::from_syntax_node(db, node)),
+             _ => panic!("Unexpected syntax kind {:?} when constructing {}.", kind, "Expr"),
+         }
+@@ -599,6 +611,7 @@
+             Expr::Indexed(x) => x.as_syntax_node(),
+             Expr::InlineMacro(x) => x.as_syntax_node(),
+             Expr::FixedSizeArray(x) => x.as_syntax_node(),
++            Expr::Caesar(x) => x.as_syntax_node(),
+             Expr::Missing(x) => x.as_syntax_node(),
+         }
+     }
+@@ -639,6 +652,7 @@
+             SyntaxKind::ExprIndexed => true,
+             SyntaxKind::ExprInlineMacro => true,
+             SyntaxKind::ExprFixedSizeArray => true,
++            SyntaxKind::ExprCaesar => true,
+             SyntaxKind::ExprMissing => true,
+             _ => false,
+         }
+@@ -2099,6 +2113,112 @@
+         node.stable_ptr().untyped()
+     }
+ }
++#[derive(Clone, Debug, Eq, Hash, PartialEq)]
++pub struct ExprCaesar {
++    node: SyntaxNode,
++    children: Arc<Vec<SyntaxNode>>,
++}
++impl ExprCaesar {
++    pub const INDEX_CAESAR_KW: usize = 0;
++    pub const INDEX_LPAREN: usize = 1;
++    pub const INDEX_SHORT_STRING: usize = 2;
++    pub const INDEX_RPAREN: usize = 3;
++    pub fn new_green(
++        db: &dyn SyntaxGroup,
++        caesar_kw: TerminalCaesarGreen,
++        lparen: TerminalLParenGreen,
++        short_string: TerminalShortStringGreen,
++        rparen: TerminalRParenGreen,
++    ) -> ExprCaesarGreen {
++        let children: Vec<GreenId> = vec![caesar_kw.0, lparen.0, short_string.0, rparen.0];
++        let width = children.iter().copied().map(|id| id.lookup_intern(db).width()).sum();
++        ExprCaesarGreen(
++            Arc::new(GreenNode {
++                kind: SyntaxKind::ExprCaesar,
++                details: GreenNodeDetails::Node { children, width },
++            })
++            .intern(db),
++        )
++    }
++}
++impl ExprCaesar {
++    pub fn caesar_kw(&self, db: &dyn SyntaxGroup) -> TerminalCaesar {
++        TerminalCaesar::from_syntax_node(db, self.children[0].clone())
++    }
++    pub fn lparen(&self, db: &dyn SyntaxGroup) -> TerminalLParen {
++        TerminalLParen::from_syntax_node(db, self.children[1].clone())
++    }
++    pub fn short_string(&self, db: &dyn SyntaxGroup) -> TerminalShortString {
++        TerminalShortString::from_syntax_node(db, self.children[2].clone())
++    }
++    pub fn rparen(&self, db: &dyn SyntaxGroup) -> TerminalRParen {
++        TerminalRParen::from_syntax_node(db, self.children[3].clone())
++    }
++}
++#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
++pub struct ExprCaesarPtr(pub SyntaxStablePtrId);
++impl ExprCaesarPtr {}
++impl TypedStablePtr for ExprCaesarPtr {
++    type SyntaxNode = ExprCaesar;
++    fn untyped(&self) -> SyntaxStablePtrId {
++        self.0
++    }
++    fn lookup(&self, db: &dyn SyntaxGroup) -> ExprCaesar {
++        ExprCaesar::from_syntax_node(db, self.0.lookup(db))
++    }
++}
++impl From<ExprCaesarPtr> for SyntaxStablePtrId {
++    fn from(ptr: ExprCaesarPtr) -> Self {
++        ptr.untyped()
++    }
++}
++#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
++pub struct ExprCaesarGreen(pub GreenId);
++impl TypedSyntaxNode for ExprCaesar {
++    const OPTIONAL_KIND: Option<SyntaxKind> = Some(SyntaxKind::ExprCaesar);
++    type StablePtr = ExprCaesarPtr;
++    type Green = ExprCaesarGreen;
++    fn missing(db: &dyn SyntaxGroup) -> Self::Green {
++        ExprCaesarGreen(
++            Arc::new(GreenNode {
++                kind: SyntaxKind::ExprCaesar,
++                details: GreenNodeDetails::Node {
++                    children: vec![
++                        TerminalCaesar::missing(db).0,
++                        TerminalLParen::missing(db).0,
++                        TerminalShortString::missing(db).0,
++                        TerminalRParen::missing(db).0,
++                    ],
++                    width: TextWidth::default(),
++                },
++            })
++            .intern(db),
++        )
++    }
++    fn from_syntax_node(db: &dyn SyntaxGroup, node: SyntaxNode) -> Self {
++        let kind = node.kind(db);
++        assert_eq!(
++            kind,
++            SyntaxKind::ExprCaesar,
++            "Unexpected SyntaxKind {:?}. Expected {:?}.",
++            kind,
++            SyntaxKind::ExprCaesar
++        );
++        let children = db.get_children(node.clone());
++        Self { node, children }
++    }
++    fn as_syntax_node(&self) -> SyntaxNode {
++        self.node.clone()
++    }
++    fn stable_ptr(&self) -> Self::StablePtr {
++        ExprCaesarPtr(self.node.0.stable_ptr)
++    }
++}
++impl From<&ExprCaesar> for SyntaxStablePtrId {
++    fn from(node: &ExprCaesar) -> Self {
++        node.stable_ptr().untyped()
++    }
++}
+ #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+ pub struct ExprUnary {
+     node: SyntaxNode,
+@@ -19814,6 +19934,183 @@
+ impl From<&TerminalAs> for SyntaxStablePtrId {
+     fn from(node: &TerminalAs) -> Self {
+         node.stable_ptr().untyped()
++    }
++}
++#[derive(Clone, Debug, Eq, Hash, PartialEq)]
++pub struct TokenCaesar {
++    node: SyntaxNode,
++}
++impl Token for TokenCaesar {
++    fn new_green(db: &dyn SyntaxGroup, text: SmolStr) -> Self::Green {
++        TokenCaesarGreen(
++            Arc::new(GreenNode {
++                kind: SyntaxKind::TokenCaesar,
++                details: GreenNodeDetails::Token(text),
++            })
++            .intern(db),
++        )
++    }
++    fn text(&self, db: &dyn SyntaxGroup) -> SmolStr {
++        extract_matches!(&self.node.0.green.lookup_intern(db).details, GreenNodeDetails::Token)
++            .clone()
++    }
++}
++#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
++pub struct TokenCaesarPtr(pub SyntaxStablePtrId);
++impl TypedStablePtr for TokenCaesarPtr {
++    type SyntaxNode = TokenCaesar;
++    fn untyped(&self) -> SyntaxStablePtrId {
++        self.0
++    }
++    fn lookup(&self, db: &dyn SyntaxGroup) -> TokenCaesar {
++        TokenCaesar::from_syntax_node(db, self.0.lookup(db))
++    }
++}
++impl From<TokenCaesarPtr> for SyntaxStablePtrId {
++    fn from(ptr: TokenCaesarPtr) -> Self {
++        ptr.untyped()
++    }
++}
++#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
++pub struct TokenCaesarGreen(pub GreenId);
++impl TokenCaesarGreen {
++    pub fn text(&self, db: &dyn SyntaxGroup) -> SmolStr {
++        extract_matches!(&self.0.lookup_intern(db).details, GreenNodeDetails::Token).clone()
++    }
++}
++impl TypedSyntaxNode for TokenCaesar {
++    const OPTIONAL_KIND: Option<SyntaxKind> = Some(SyntaxKind::TokenCaesar);
++    type StablePtr = TokenCaesarPtr;
++    type Green = TokenCaesarGreen;
++    fn missing(db: &dyn SyntaxGroup) -> Self::Green {
++        TokenCaesarGreen(
++            Arc::new(GreenNode {
++                kind: SyntaxKind::TokenMissing,
++                details: GreenNodeDetails::Token("".into()),
++            })
++            .intern(db),
++        )
++    }
++    fn from_syntax_node(db: &dyn SyntaxGroup, node: SyntaxNode) -> Self {
++        match node.0.green.lookup_intern(db).details {
++            GreenNodeDetails::Token(_) => Self { node },
++            GreenNodeDetails::Node { .. } => {
++                panic!("Expected a token {:?}, not an internal node", SyntaxKind::TokenCaesar)
++            }
++        }
++    }
++    fn as_syntax_node(&self) -> SyntaxNode {
++        self.node.clone()
++    }
++    fn stable_ptr(&self) -> Self::StablePtr {
++        TokenCaesarPtr(self.node.0.stable_ptr)
++    }
++}
++impl From<&TokenCaesar> for SyntaxStablePtrId {
++    fn from(node: &TokenCaesar) -> Self {
++        node.stable_ptr().untyped()
++    }
++}
++#[derive(Clone, Debug, Eq, Hash, PartialEq)]
++pub struct TerminalCaesar {
++    node: SyntaxNode,
++    children: Arc<Vec<SyntaxNode>>,
++}
++impl Terminal for TerminalCaesar {
++    const KIND: SyntaxKind = SyntaxKind::TerminalCaesar;
++    type TokenType = TokenCaesar;
++    fn new_green(
++        db: &dyn SyntaxGroup,
++        leading_trivia: TriviaGreen,
++        token: <<TerminalCaesar as Terminal>::TokenType as TypedSyntaxNode>::Green,
++        trailing_trivia: TriviaGreen,
++    ) -> Self::Green {
++        let children: Vec<GreenId> = vec![leading_trivia.0, token.0, trailing_trivia.0];
++        let width = children.iter().copied().map(|id| id.lookup_intern(db).width()).sum();
++        TerminalCaesarGreen(
++            Arc::new(GreenNode {
++                kind: SyntaxKind::TerminalCaesar,
++                details: GreenNodeDetails::Node { children, width },
++            })
++            .intern(db),
++        )
++    }
++    fn text(&self, db: &dyn SyntaxGroup) -> SmolStr {
++        self.token(db).text(db)
++    }
++}
++impl TerminalCaesar {
++    pub fn leading_trivia(&self, db: &dyn SyntaxGroup) -> Trivia {
++        Trivia::from_syntax_node(db, self.children[0].clone())
++    }
++    pub fn token(&self, db: &dyn SyntaxGroup) -> TokenCaesar {
++        TokenCaesar::from_syntax_node(db, self.children[1].clone())
++    }
++    pub fn trailing_trivia(&self, db: &dyn SyntaxGroup) -> Trivia {
++        Trivia::from_syntax_node(db, self.children[2].clone())
++    }
++}
++#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
++pub struct TerminalCaesarPtr(pub SyntaxStablePtrId);
++impl TerminalCaesarPtr {}
++impl TypedStablePtr for TerminalCaesarPtr {
++    type SyntaxNode = TerminalCaesar;
++    fn untyped(&self) -> SyntaxStablePtrId {
++        self.0
++    }
++    fn lookup(&self, db: &dyn SyntaxGroup) -> TerminalCaesar {
++        TerminalCaesar::from_syntax_node(db, self.0.lookup(db))
++    }
++}
++impl From<TerminalCaesarPtr> for SyntaxStablePtrId {
++    fn from(ptr: TerminalCaesarPtr) -> Self {
++        ptr.untyped()
++    }
++}
++#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
++pub struct TerminalCaesarGreen(pub GreenId);
++impl TypedSyntaxNode for TerminalCaesar {
++    const OPTIONAL_KIND: Option<SyntaxKind> = Some(SyntaxKind::TerminalCaesar);
++    type StablePtr = TerminalCaesarPtr;
++    type Green = TerminalCaesarGreen;
++    fn missing(db: &dyn SyntaxGroup) -> Self::Green {
++        TerminalCaesarGreen(
++            Arc::new(GreenNode {
++                kind: SyntaxKind::TerminalCaesar,
++                details: GreenNodeDetails::Node {
++                    children: vec![
++                        Trivia::missing(db).0,
++                        TokenCaesar::missing(db).0,
++                        Trivia::missing(db).0,
++                    ],
++                    width: TextWidth::default(),
++                },
++            })
++            .intern(db),
++        )
++    }
++    fn from_syntax_node(db: &dyn SyntaxGroup, node: SyntaxNode) -> Self {
++        let kind = node.kind(db);
++        assert_eq!(
++            kind,
++            SyntaxKind::TerminalCaesar,
++            "Unexpected SyntaxKind {:?}. Expected {:?}.",
++            kind,
++            SyntaxKind::TerminalCaesar
++        );
++        let children = db.get_children(node.clone());
++        Self { node, children }
++    }
++    fn as_syntax_node(&self) -> SyntaxNode {
++        self.node.clone()
++    }
++    fn stable_ptr(&self) -> Self::StablePtr {
++        TerminalCaesarPtr(self.node.0.stable_ptr)
++    }
++}
++impl From<&TerminalCaesar> for SyntaxStablePtrId {
++    fn from(node: &TerminalCaesar) -> Self {
++        node.stable_ptr().untyped()
+     }
+ }
+ #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+Index: crates/cairo-lang-syntax/src/node/key_fields.rs
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/crates/cairo-lang-syntax/src/node/key_fields.rs b/crates/cairo-lang-syntax/src/node/key_fields.rs
+--- a/crates/cairo-lang-syntax/src/node/key_fields.rs	(revision d0273bcc88a14c39fe61d76da7860eb25857ea83)
++++ b/crates/cairo-lang-syntax/src/node/key_fields.rs	(revision dfe3c6b70d27eb51e290a77941dcc1fbfb27b43e)
+@@ -40,6 +40,9 @@
+         SyntaxKind::ExprParenthesized => {
+             vec![]
+         }
++        SyntaxKind::ExprCaesar => {
++            vec![]
++        }
+         SyntaxKind::ExprUnary => {
+             vec![]
+         }
+@@ -401,6 +404,10 @@
+         SyntaxKind::TokenAs => vec![],
+         SyntaxKind::TerminalAs => {
+             vec![]
++        }
++        SyntaxKind::TokenCaesar => vec![],
++        SyntaxKind::TerminalCaesar => {
++            vec![]
+         }
+         SyntaxKind::TokenConst => vec![],
+         SyntaxKind::TerminalConst => {
+Index: crates/cairo-lang-syntax/src/node/kind.rs
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/crates/cairo-lang-syntax/src/node/kind.rs b/crates/cairo-lang-syntax/src/node/kind.rs
+--- a/crates/cairo-lang-syntax/src/node/kind.rs	(revision d0273bcc88a14c39fe61d76da7860eb25857ea83)
++++ b/crates/cairo-lang-syntax/src/node/kind.rs	(revision dfe3c6b70d27eb51e290a77941dcc1fbfb27b43e)
+@@ -16,6 +16,7 @@
+     PathSegmentWithGenericArgs,
+     ExprPath,
+     ExprParenthesized,
++    ExprCaesar,
+     ExprUnary,
+     ExprBinary,
+     ExprListParenthesized,
+@@ -152,6 +153,8 @@
+     TerminalString,
+     TokenAs,
+     TerminalAs,
++    TokenCaesar,
++    TerminalCaesar,
+     TokenConst,
+     TerminalConst,
+     TokenElse,
+@@ -312,6 +315,7 @@
+                 | SyntaxKind::TokenShortString
+                 | SyntaxKind::TokenString
+                 | SyntaxKind::TokenAs
++                | SyntaxKind::TokenCaesar
+                 | SyntaxKind::TokenConst
+                 | SyntaxKind::TokenElse
+                 | SyntaxKind::TokenEnum
+@@ -399,6 +403,7 @@
+                 | SyntaxKind::TerminalShortString
+                 | SyntaxKind::TerminalString
+                 | SyntaxKind::TerminalAs
++                | SyntaxKind::TerminalCaesar
+                 | SyntaxKind::TerminalConst
+                 | SyntaxKind::TerminalElse
+                 | SyntaxKind::TerminalEnum
+@@ -477,6 +482,7 @@
+         matches!(
+             *self,
+             SyntaxKind::TokenAs
++                | SyntaxKind::TokenCaesar
+                 | SyntaxKind::TokenConst
+                 | SyntaxKind::TokenElse
+                 | SyntaxKind::TokenEnum
+@@ -511,6 +517,7 @@
+         matches!(
+             *self,
+             SyntaxKind::TerminalAs
++                | SyntaxKind::TerminalCaesar
+                 | SyntaxKind::TerminalConst
+                 | SyntaxKind::TerminalElse
+                 | SyntaxKind::TerminalEnum

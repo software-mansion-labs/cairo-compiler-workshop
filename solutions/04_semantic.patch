@@ -1,0 +1,147 @@
+Subject: [PATCH] semantic
+---
+Index: crates/cairo-lang-semantic/src/expr/compute.rs
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/crates/cairo-lang-semantic/src/expr/compute.rs b/crates/cairo-lang-semantic/src/expr/compute.rs
+--- a/crates/cairo-lang-semantic/src/expr/compute.rs	(revision a62a0bbb2259f95fcdc904ab373d8b8834b98c28)
++++ b/crates/cairo-lang-semantic/src/expr/compute.rs	(revision c7cd595cd82dba9e60a0da422663c31aa319ea74)
+@@ -359,9 +359,24 @@
+         ast::Expr::FixedSizeArray(expr) => compute_expr_fixed_size_array_semantic(ctx, expr),
+         ast::Expr::For(expr) => compute_expr_for_semantic(ctx, expr),
+         ast::Expr::Closure(expr) => compute_expr_closure_semantic(ctx, expr),
+-        ast::Expr::Caesar(_) => todo!(),
++        ast::Expr::Caesar(expr) => compute_expr_caesar_semantic(ctx, expr),
+     }
+ }
++
++fn compute_expr_caesar_semantic(
++    ctx: &mut ComputationContext<'_>,
++    syntax: &ast::ExprCaesar,
++) -> Maybe<Expr> {
++    let syntax_db = ctx.db.upcast();
++
++    let value_semantic = short_string_to_semantic(ctx, &syntax.short_string(syntax_db))?;
++
++    Ok(Expr::ExprCaesar(ExprCaesar {
++        value: value_semantic.value,
++        ty: value_semantic.ty,
++        stable_ptr: syntax.stable_ptr().into(),
++    }))
++}
+ 
+ fn compute_expr_inline_macro_semantic(
+     ctx: &mut ComputationContext<'_>,
+Index: crates/cairo-lang-semantic/src/expr/objects.rs
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/crates/cairo-lang-semantic/src/expr/objects.rs b/crates/cairo-lang-semantic/src/expr/objects.rs
+--- a/crates/cairo-lang-semantic/src/expr/objects.rs	(revision a62a0bbb2259f95fcdc904ab373d8b8834b98c28)
++++ b/crates/cairo-lang-semantic/src/expr/objects.rs	(revision c7cd595cd82dba9e60a0da422663c31aa319ea74)
+@@ -145,6 +145,7 @@
+     Constant(ExprConstant),
+     FixedSizeArray(ExprFixedSizeArray),
+     ExprClosure(ExprClosure),
++    ExprCaesar(ExprCaesar),
+     Missing(ExprMissing),
+ }
+ impl Expr {
+@@ -173,6 +174,7 @@
+             Expr::Missing(expr) => expr.ty,
+             Expr::FixedSizeArray(expr) => expr.ty,
+             Expr::ExprClosure(expr) => expr.ty,
++            Expr::ExprCaesar(expr) => expr.ty,
+         }
+     }
+     pub fn stable_ptr(&self) -> ast::ExprPtr {
+@@ -200,6 +202,7 @@
+             Expr::Missing(expr) => expr.stable_ptr,
+             Expr::FixedSizeArray(expr) => expr.stable_ptr,
+             Expr::ExprClosure(expr) => expr.stable_ptr,
++            Expr::ExprCaesar(expr) => expr.stable_ptr,
+         }
+     }
+ 
+@@ -218,6 +221,17 @@
+     }
+ }
+ 
++#[derive(Clone, Debug, Hash, PartialEq, Eq, DebugWithDb, SemanticObject)]
++#[debug_db(ExprFormatter<'a>)]
++pub struct ExprCaesar {
++    #[dont_rewrite]
++    pub value: BigInt,
++    pub ty: semantic::TypeId,
++    #[hide_field_debug_with_db]
++    #[dont_rewrite]
++    pub stable_ptr: ast::ExprPtr,
++}
++
+ #[derive(Clone, Debug, Hash, PartialEq, Eq, DebugWithDb, SemanticObject)]
+ #[debug_db(ExprFormatter<'a>)]
+ pub struct ExprTuple {
+Index: crates/cairo-lang-semantic/src/expr/semantic_test_data/caesar
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/crates/cairo-lang-semantic/src/expr/semantic_test_data/caesar b/crates/cairo-lang-semantic/src/expr/semantic_test_data/caesar
+new file mode 100644
+--- /dev/null	(revision c7cd595cd82dba9e60a0da422663c31aa319ea74)
++++ b/crates/cairo-lang-semantic/src/expr/semantic_test_data/caesar	(revision c7cd595cd82dba9e60a0da422663c31aa319ea74)
+@@ -0,0 +1,19 @@
++//! > Test caesar
++
++//! > test_runner_name
++test_expr_semantics(expect_diagnostics: false)
++
++//! > function_body
++
++//! > expr_code
++caesar('foobar')
++
++//! > expected_semantics
++ExprCaesar(
++    ExprCaesar {
++        value: 112628796121458,
++        ty: core::felt252,
++    },
++)
++
++//! > expected_diagnostics
+Index: crates/cairo-lang-semantic/src/expr/test.rs
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/crates/cairo-lang-semantic/src/expr/test.rs b/crates/cairo-lang-semantic/src/expr/test.rs
+--- a/crates/cairo-lang-semantic/src/expr/test.rs	(revision a62a0bbb2259f95fcdc904ab373d8b8834b98c28)
++++ b/crates/cairo-lang-semantic/src/expr/test.rs	(revision c7cd595cd82dba9e60a0da422663c31aa319ea74)
+@@ -82,6 +82,7 @@
+         tuple: "tuple",
+         while_: "while",
+         for_: "for",
++        caesar: "caesar",
+     },
+     test_expr_semantics
+ );
+Index: crates/cairo-lang-semantic/src/substitution.rs
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/crates/cairo-lang-semantic/src/substitution.rs b/crates/cairo-lang-semantic/src/substitution.rs
+--- a/crates/cairo-lang-semantic/src/substitution.rs	(revision a62a0bbb2259f95fcdc904ab373d8b8834b98c28)
++++ b/crates/cairo-lang-semantic/src/substitution.rs	(revision c7cd595cd82dba9e60a0da422663c31aa319ea74)
+@@ -353,6 +353,7 @@
+         $crate::prune_single!(__identity_helper, ConstantId, $($exclude)*);
+ 
+         $crate::prune_single!(__regular_helper, Expr, $($exclude)*);
++        $crate::prune_single!(__regular_helper, ExprCaesar, $($exclude)*);
+         $crate::prune_single!(__regular_helper, ExprTuple, $($exclude)*);
+         $crate::prune_single!(__regular_helper, ExprSnapshot, $($exclude)*);
+         $crate::prune_single!(__regular_helper, ExprDesnap, $($exclude)*);

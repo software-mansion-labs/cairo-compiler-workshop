@@ -1,0 +1,111 @@
+Subject: [PATCH] lowering
+---
+Index: crates/cairo-lang-lowering/src/lower/mod.rs
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/crates/cairo-lang-lowering/src/lower/mod.rs b/crates/cairo-lang-lowering/src/lower/mod.rs
+--- a/crates/cairo-lang-lowering/src/lower/mod.rs	(revision c7cd595cd82dba9e60a0da422663c31aa319ea74)
++++ b/crates/cairo-lang-lowering/src/lower/mod.rs	(revision a2396aca3942580a69458dd7a5720983c427151b)
+@@ -859,6 +859,7 @@
+         }
+         semantic::Expr::Literal(expr) => lower_expr_literal(ctx, expr, builder),
+         semantic::Expr::StringLiteral(expr) => lower_expr_string_literal(ctx, expr, builder),
++        semantic::Expr::ExprCaesar(expr) => lower_expr_caesar(ctx, expr, builder),
+         semantic::Expr::MemberAccess(expr) => lower_expr_member_access(ctx, expr, builder),
+         semantic::Expr::StructCtor(expr) => lower_expr_struct_ctor(ctx, expr, builder),
+         semantic::Expr::EnumVariantCtor(expr) => lower_expr_enum_ctor(ctx, expr, builder),
+@@ -873,6 +874,24 @@
+     }
+ }
+ 
++fn lower_expr_caesar(
++    ctx: &mut LoweringContext<'_, '_>,
++    expr: &semantic::ExprCaesar,
++    builder: &mut BlockBuilder,
++) -> LoweringResult<LoweredExpr> {
++    log::trace!("Lowering caesar: {:?}", expr.debug(&ctx.expr_formatter));
++    let encrypted = caesar(&expr.value);
++    lower_expr_literal_helper(ctx, expr.stable_ptr.untyped(), expr.ty, &encrypted, builder)
++}
++
++fn caesar(secret: &BigInt) -> BigInt {
++    let (sign, mut bytes) = secret.to_bytes_be();
++    for byte in &mut bytes {
++        *byte = byte.wrapping_add(3);
++    }
++    BigInt::from_bytes_be(sign, &bytes)
++}
++
+ fn lower_expr_literal(
+     ctx: &mut LoweringContext<'_, '_>,
+     expr: &semantic::ExprLiteral,
+Index: crates/cairo-lang-lowering/src/lower/usage.rs
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/crates/cairo-lang-lowering/src/lower/usage.rs b/crates/cairo-lang-lowering/src/lower/usage.rs
+--- a/crates/cairo-lang-lowering/src/lower/usage.rs	(revision c7cd595cd82dba9e60a0da422663c31aa319ea74)
++++ b/crates/cairo-lang-lowering/src/lower/usage.rs	(revision a2396aca3942580a69458dd7a5720983c427151b)
+@@ -329,6 +329,7 @@
+                     .insert(MemberPath::Var(expr.var), ExprVarMemberPath::Var(expr.clone()));
+             }
+             Expr::Literal(_) | Expr::StringLiteral(_) => {}
++            Expr::ExprCaesar(_) => {}
+             Expr::MemberAccess(expr) => {
+                 if let Some(member_path) = &expr.member_path {
+                     current.usage.insert(member_path.into(), member_path.clone());
+Index: crates/cairo-lang-lowering/src/test.rs
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/crates/cairo-lang-lowering/src/test.rs b/crates/cairo-lang-lowering/src/test.rs
+--- a/crates/cairo-lang-lowering/src/test.rs	(revision c7cd595cd82dba9e60a0da422663c31aa319ea74)
++++ b/crates/cairo-lang-lowering/src/test.rs	(revision a2396aca3942580a69458dd7a5720983c427151b)
+@@ -55,6 +55,7 @@
+         strings :"strings",
+         while_ :"while",
+         for_ :"for",
++        caesar: "caesar",
+     },
+     test_function_lowering
+ );
+Index: crates/cairo-lang-lowering/src/test_data/caesar
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/crates/cairo-lang-lowering/src/test_data/caesar b/crates/cairo-lang-lowering/src/test_data/caesar
+new file mode 100644
+--- /dev/null	(revision a2396aca3942580a69458dd7a5720983c427151b)
++++ b/crates/cairo-lang-lowering/src/test_data/caesar	(revision a2396aca3942580a69458dd7a5720983c427151b)
+@@ -0,0 +1,26 @@
++//! > Test boolean if.
++
++//! > test_runner_name
++test_function_lowering
++
++//! > function
++fn foo() -> felt252 {
++    caesar ('foobar')
++}
++
++//! > function_name
++foo
++
++//! > module_code
++
++//! > semantic_diagnostics
++
++//! > lowering_diagnostics
++
++//! > lowering_flat
++Parameters:
++blk0 (root):
++Statements:
++  (v0: core::felt252) <- 115940266435701
++End:
++  Return(v0)

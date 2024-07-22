@@ -1,0 +1,57 @@
+Subject: [PATCH] e2e
+---
+Index: tests/e2e_test.rs
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/tests/e2e_test.rs b/tests/e2e_test.rs
+--- a/tests/e2e_test.rs	(revision a2396aca3942580a69458dd7a5720983c427151b)
++++ b/tests/e2e_test.rs	(revision 6363a86aab0b533f90cb7ef3bb10d3c5a02a0fd2)
+@@ -43,6 +43,7 @@
+     "e2e_test_data",
+     {
+         cmp: "cmp",
++        caesar: "caesar",
+     },
+     SmallE2ETestRunner
+ );
+Index: tests/e2e_test_data/caesar
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/tests/e2e_test_data/caesar b/tests/e2e_test_data/caesar
+new file mode 100644
+--- /dev/null	(revision 6363a86aab0b533f90cb7ef3bb10d3c5a02a0fd2)
++++ b/tests/e2e_test_data/caesar	(revision 6363a86aab0b533f90cb7ef3bb10d3c5a02a0fd2)
+@@ -0,0 +1,29 @@
++//! > caesar
++
++//! > test_runner_name
++SmallE2ETestRunner
++
++//! > cairo
++fn main() -> felt252 {
++    caesar('hello world')
++}
++
++//! > casm
++[ap + 0] = 129848244432096040924311399, ap++;
++ret;
++
++//! > sierra_code
++type felt252 = felt252 [storable: true, drop: true, dup: true, zero_sized: false];
++type Const<felt252, 129848244432096040924311399> = Const<felt252, 129848244432096040924311399> [storable: false, drop: false, dup: false, zero_sized: false];
++
++libfunc const_as_immediate<Const<felt252, 129848244432096040924311399>> = const_as_immediate<Const<felt252, 129848244432096040924311399>>;
++libfunc store_temp<felt252> = store_temp<felt252>;
++
++const_as_immediate<Const<felt252, 129848244432096040924311399>>() -> ([0]); // 0
++store_temp<felt252>([0]) -> ([0]); // 1
++return([0]); // 2
++
++test::main@0() -> (felt252);
++
++//! > function_costs
++test::main: OrderedHashMap({Const: 100})
