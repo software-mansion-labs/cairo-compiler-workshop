@@ -90,9 +90,80 @@ The definition file is located at: `crates/cairo-lang-syntax-codegen/src/cairo_s
 Make sure to regenerate files in `crates/cairo-lang-syntax` and make your code compile.
 No need to add any tests at this stage.
 
-# Chapter 2: Parser
+# Chapter 2: Parser and AST
 
-TODO
+- Cairo is using a handwritten recursive descent parser.
+- The parser is located in `crates/cairo-lang-parser/src/parser.rs`.
+- It emits "green nodes" and parsing diagnostics (errors).
+- The parser if infallible, it always succeeds to consume source code until EOF.
+  - If some production is missing, it emits a `Missing` green node and error diagnostic.
+  - This enables parsing and analyzing partial trees, which enables CairoLS.
+
+## Green nodes
+
+```rust
+pub struct GreenNode {
+    pub kind: SyntaxKind,
+    pub details: GreenNodeDetails,
+}
+pub enum GreenNodeDetails {
+    Token(SmolStr),
+    Node { children: Vec<GreenId>, width: TextWidth },
+}
+```
+
+- Green nodes is an AST representation that is not strictly typed:
+- It has no accessors, it's for example hard to find out function name in function definition subtree.
+- But it is trivial to traverse in various directions and to manipulate, e.g. in formatter.
+
+## Typed syntax tree
+
+```rust
+pub trait TypedSyntaxNode {
+    const OPTIONAL_KIND: Option<SyntaxKind>;
+    type StablePtr: TypedStablePtr;
+    type Green;
+    fn missing(db: &dyn SyntaxGroup) -> Self::Green;
+    fn from_syntax_node(db: &dyn SyntaxGroup, node: SyntaxNode) -> Self;
+    fn as_syntax_node(&self) -> SyntaxNode;
+    fn stable_ptr(&self) -> Self::StablePtr;
+}
+```
+
+- On top of green (sub)tree, a typed AST can be built.
+- There are accessors, but arbitrary traversal is hard.
+- Great for picking precise information from the tree.
+
+## Stable pointers
+
+```rust
+/// Stable pointer to a node in the syntax tree.
+/// Has enough information to uniquely define a node in the AST, given the tree.
+/// Has undefined behavior when used with the wrong tree.
+/// This is not a real pointer in the low-level sense, just a representation of the path from the
+/// root to the node.
+/// Stable means that when the AST is changed, pointers of unchanged items tend to stay the same.
+/// For example, if a function is changed, the pointer of an unrelated function in the AST should
+/// remain the same, as much as possible.
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub enum SyntaxStablePtr {
+    /// The root node of the tree.
+    Root(FileId, GreenId),
+    /// A child node.
+    Child {
+        /// The parent of the node.
+        parent: SyntaxStablePtrId,
+        /// The SyntaxKind of the node.
+        kind: SyntaxKind,
+        /// A list of field values for this node, to index by.
+        /// Which fields are used is determined by each SyntaxKind.
+        /// For example, a function item might use the name of the function.
+        key_fields: Vec<GreenId>,
+        /// Chronological index among all nodes with the same (parent, kind, key_fields).
+        index: usize,
+    },
+}
+```
 
 # Exercise 2: Lexer
 
@@ -115,7 +186,7 @@ cairo_lang_test_utils::test_file_test!(
         assignment: "assignment",
         attributes: "attributes",
         constant: "constant",
-        ...
+        // ...
     },
     test_function_diagnostics
 );
@@ -233,7 +304,7 @@ Using Salsa is as easy as 1, 2, 3...
 2. Define the **query functions** where appropriate.
 3. Define the **database**, which contains the storage for all
    the inputs/queries you will be using. The query struct will contain
-   the storage for all of the inputs/queries and may also contain
+   the storage for all the inputs/queries and may also contain
    anything else that your code needs (e.g., configuration data).
 
 ## Salsa use in Cairo compiler
@@ -257,20 +328,20 @@ pub trait FilesGroup {
     #[salsa::interned]
     fn intern_crate(&self, crt: CrateLongId) -> CrateId;
     
-    ...
+    // ...
 
     /// Main input of the project. Lists all the crates configurations.
     #[salsa::input]
     fn crate_configs(&self) -> Arc<OrderedHashMap<CrateId, CrateConfiguration>>;
 
-    ...
+    // ...
 
     /// Query for raw file contents. Private.
     fn priv_raw_file_content(&self, file_id: FileId) -> Option<Arc<String>>;
     /// Query for the file contents. This takes overrides into consideration.
     fn file_content(&self, file_id: FileId) -> Option<Arc<String>>;
     
-    ...
+    // ...
 }
 
 fn priv_raw_file_content(db: &dyn FilesGroup, file: FileId) -> Option<Arc<String>> {
@@ -279,7 +350,7 @@ fn priv_raw_file_content(db: &dyn FilesGroup, file: FileId) -> Option<Arc<String
             Ok(content) => Some(Arc::new(content)),
             Err(_) => None,
         },
-        FileLongId::Virtual(virt) => Some(virt.content),
+        FileLongId::Virtual(v) => Some(v.content),
     }
 }
 
@@ -293,7 +364,7 @@ pub trait SyntaxGroup: FilesGroup + Upcast<dyn FilesGroup> {
     #[salsa::interned]
     fn intern_green(&self, field: Arc<GreenNode>) -> GreenId;
     
-    ...
+    // ...
 
     /// Returns the children of the given node.
     fn get_children(&self, node: SyntaxNode) -> Arc<Vec<SyntaxNode>>;
@@ -392,3 +463,9 @@ Congratulations! You've made it to the final exercise.
 This one is trivial but very satisfying.
 
 **Add an E2E test for your new syntax.**
+
+---
+
+# Appendix: Credits
+
+Parts of Salsa information is copied verbatim from the Salsa Book.
