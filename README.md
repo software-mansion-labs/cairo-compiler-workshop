@@ -46,9 +46,29 @@ Here are some protips from a seasoned compiler contributor:
     * Familiarize with [git spr](https://github.com/ejoffe/spr).
     * Otherwise, you're out of luck and familiarize with `git rebase`.
 
-# Chapter 1: Introduction, compiler architecture
+# Chapter 1: Compiler architecture
 
-TODO
+- The Cairo compiler is built as a library that is split into numerous purpose-focused crates.
+- There's crate for filesystem ops & collecting compiler input, there's one with parser, another one with syntax
+  definition and a series of crates for code analysis and generation.
+- One could identify the following stages of code compilation:
+    - Filesystem access
+    - Lexing
+    - Parsing
+    - Semantic analysis - taking syntax trees and producing sets of simple objects telling what they are.
+    - Lowering: taking semantic objects for functions and producing a _Control Flow Graph_.
+    - Sierra generation
+- The root crate for the compiler is called `cairo-lang-compiler`, and it provides a struct called `RootDatabase` which
+  is the heart of the compiler.
+- The most important bits from compiler output can (but doesn't have to) be a `Project` structure
+  - This is serializable from `cairo_project.toml` files.
+  - This is implemented in `cairo-lang-project` crate.
+  - Scarb and CairoLS are working differently.
+- There is a set of binaries present in compiler repository that provide compiler functionality as small programs.
+  - They are largely made with Starkware internal use in mind.
+  - As you all know, use Scarb.
+- While there are efforts to maintain backward compatibility of Cairo as a language, the Cairo compiler library API is
+  highly unstable.
 
 # Exercise 1: Adding new grammar production
 
@@ -62,6 +82,13 @@ Our new syntax is: **a `caesar` expression**.
 It will take a literal short string and will encrypt it using a Caesar cipher in compile-time.
 Because of time constraints, we will limit ourselves to just accept literal short strings.
 Const-evaluation of arbitrary expressions is not our goal, though it's a nice homework idea!
+
+BNF:
+
+```bnf
+Expr ::= ExprCaesar | /* ... */
+ExprCaesar ::= 'caesar' '(' TerminalShortString ')'
+```
 
 For the following code:
 
@@ -96,8 +123,8 @@ No need to add any tests at this stage.
 - The parser is located in `crates/cairo-lang-parser/src/parser.rs`.
 - It emits "green nodes" and parsing diagnostics (errors).
 - The parser if infallible, it always succeeds to consume source code until EOF.
-  - If some production is missing, it emits a `Missing` green node and error diagnostic.
-  - This enables parsing and analyzing partial trees, which enables CairoLS.
+    - If some production is missing, it emits a `Missing` green node and error diagnostic.
+    - This enables parsing and analyzing partial trees, which enables CairoLS.
 
 ## Green nodes
 
@@ -327,7 +354,7 @@ pub struct RootDatabase;
 pub trait FilesGroup {
     #[salsa::interned]
     fn intern_crate(&self, crt: CrateLongId) -> CrateId;
-    
+
     // ...
 
     /// Main input of the project. Lists all the crates configurations.
@@ -340,7 +367,7 @@ pub trait FilesGroup {
     fn priv_raw_file_content(&self, file_id: FileId) -> Option<Arc<String>>;
     /// Query for the file contents. This takes overrides into consideration.
     fn file_content(&self, file_id: FileId) -> Option<Arc<String>>;
-    
+
     // ...
 }
 
@@ -363,7 +390,7 @@ fn file_content(db: &dyn FilesGroup, file: FileId) -> Option<Arc<String>> {
 pub trait SyntaxGroup: FilesGroup + Upcast<dyn FilesGroup> {
     #[salsa::interned]
     fn intern_green(&self, field: Arc<GreenNode>) -> GreenId;
-    
+
     // ...
 
     /// Returns the children of the given node.
@@ -389,6 +416,10 @@ outdated:
   into the incremental algorithm and explains -- at a high-level -- how Salsa is
   implemented.
 
+# Chapter 5: Semantic model
+
+TODO
+
 # Exercise 4: Semantic model
 
 **Implement semantic model for the `caesar(...)` expression.**
@@ -405,7 +436,7 @@ Don't forget about adding tests! Just a happy-path is fine for us here.
 > You will likely stumble upon a cryptic compilation error here.
 > You will have to duplicate some line in some macro.
 
-# Chapter 5: CairoLS
+# Chapter 6: CairoLS
 
 ```rust
 /// The Cairo compiler Salsa database tailored for language server usage.
@@ -423,8 +454,54 @@ pub struct AnalysisDatabase;
 
 1. CairoLS ends on the semantic model.
 2. It uses its own Salsa database, `AnalysisDatabase`, which has a subset of compiler queries, but adds some extra ones.
-3. CairoLS is doing a lot of reverse queries, i.e. it is asking for things bottom-top, which is not happening in the compiler.
-4. The usual flow is code location → AST → semantic model → analysis → semantic model → AST → code location. 
+3. CairoLS is doing a lot of reverse queries, i.e. it is asking for things bottom-top, which is not happening in the
+   compiler.
+4. The usual flow is code location → AST → semantic model → analysis → semantic model → AST → code location.
+
+# Chapter 7: Lowering
+
+- Lowering is a process of transforming semantic models of functions into a _Control Flow Graph_ (CFG).
+- CFG has a very simple, almost Sierra-like structure.
+    - It's composed of _blocks_ (sometimes called _basic blocks_, for example in LLVM).
+        - Blocks are sequences of statements, which have _Single Static Assignment_ (SSA) form.
+        - Blocks are connected with _jumps_ that can only exist at the end of the block.
+- The CFG is a very good representation for optimization.
+
+The following Cairo code:
+
+```cairo
+fn foo(a: bool, x: felt252) -> felt252 {
+    if a {
+        1
+    } else {
+        x
+    }
+}
+```
+
+Is lowered to:
+
+```text
+Parameters: v0: core::bool, v1: core::felt252
+blk0 (root):
+Statements:
+End:
+  Match(match_enum(v0) {
+    bool::False(v2) => blk1,
+    bool::True(v3) => blk2,
+  })
+
+blk1:
+Statements:
+End:
+  Return(v1)
+
+blk2:
+Statements:
+  (v4: core::felt252) <- 1
+End:
+  Return(v4)
+```
 
 # Exercise 5: Lowering
 
@@ -451,7 +528,7 @@ fn caesar(secret: &BigInt) -> BigInt {
 }
 ```
 
-# Chapter 6: Sierra generation in a nutshell
+# Chapter 8: Sierra generation in a nutshell
 
 - This is implemented in the `SierraGen` Salsa group.
 - But! I have a happy message for all of you!
