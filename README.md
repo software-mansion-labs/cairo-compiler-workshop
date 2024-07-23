@@ -252,12 +252,48 @@ pub struct RootDatabase;
 ```
 
 ```rust
+#[salsa::query_group(FilesDatabase)]
+pub trait FilesGroup {
+    #[salsa::interned]
+    fn intern_crate(&self, crt: CrateLongId) -> CrateId;
+    
+    ...
+
+    /// Main input of the project. Lists all the crates configurations.
+    #[salsa::input]
+    fn crate_configs(&self) -> Arc<OrderedHashMap<CrateId, CrateConfiguration>>;
+
+    ...
+
+    /// Query for raw file contents. Private.
+    fn priv_raw_file_content(&self, file_id: FileId) -> Option<Arc<String>>;
+    /// Query for the file contents. This takes overrides into consideration.
+    fn file_content(&self, file_id: FileId) -> Option<Arc<String>>;
+    
+    ...
+}
+
+fn priv_raw_file_content(db: &dyn FilesGroup, file: FileId) -> Option<Arc<String>> {
+    match file.lookup_intern(db) {
+        FileLongId::OnDisk(path) => match fs::read_to_string(path) {
+            Ok(content) => Some(Arc::new(content)),
+            Err(_) => None,
+        },
+        FileLongId::Virtual(virt) => Some(virt.content),
+    }
+}
+
+fn file_content(db: &dyn FilesGroup, file: FileId) -> Option<Arc<String>> {
+    let overrides = db.file_overrides();
+    overrides.get(&file).cloned().or_else(|| db.priv_raw_file_content(file))
+}
+
 #[salsa::query_group(SyntaxDatabase)]
 pub trait SyntaxGroup: FilesGroup + Upcast<dyn FilesGroup> {
     #[salsa::interned]
     fn intern_green(&self, field: Arc<GreenNode>) -> GreenId;
-    #[salsa::interned]
-    fn intern_stable_ptr(&self, field: SyntaxStablePtr) -> SyntaxStablePtrId;
+    
+    ...
 
     /// Returns the children of the given node.
     fn get_children(&self, node: SyntaxNode) -> Arc<Vec<SyntaxNode>>;
