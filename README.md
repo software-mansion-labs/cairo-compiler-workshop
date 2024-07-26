@@ -61,12 +61,12 @@ Here are some protips from a seasoned compiler contributor:
 - The root crate for the compiler is called `cairo-lang-compiler`, and it provides a struct called `RootDatabase` which
   is the heart of the compiler.
 - The most important bits from compiler output can (but doesn't have to) be a `Project` structure
-  - This is serializable from `cairo_project.toml` files.
-  - This is implemented in `cairo-lang-project` crate.
-  - Scarb and CairoLS are working differently.
+    - This is serializable from `cairo_project.toml` files.
+    - This is implemented in `cairo-lang-project` crate.
+    - Scarb and CairoLS are working differently.
 - There is a set of binaries present in compiler repository that provide compiler functionality as small programs.
-  - They are largely made with Starkware internal use in mind.
-  - As you all know, use Scarb.
+    - They are largely made with Starkware internal use in mind.
+    - As you all know, use Scarb.
 - While there are efforts to maintain backward compatibility of Cairo as a language, the Cairo compiler library API is
   highly unstable.
 
@@ -110,11 +110,17 @@ ret;
 **Add a new expression production to the Cairo grammar.**
 
 The grammar is defined by a Rust file that describes all productions, and from which a set of files providing various
-types (AST, some enumerations etc.) is generated.
+types (AST, the `SyntaxKind` enum, etc.) is generated.
 
 The definition file is located at: `crates/cairo-lang-syntax-codegen/src/cairo_spec.rs`.
 
 Make sure to regenerate files in `crates/cairo-lang-syntax` and make your code compile.
+You can do this with the following command:
+
+```sh
+cargo run --bin generate-syntax
+```
+
 No need to add any tests at this stage.
 
 # Chapter 2: Parser and AST
@@ -135,6 +141,8 @@ pub struct GreenNode {
 }
 pub enum GreenNodeDetails {
     Token(SmolStr),
+    // GreenId is kind of a "pointer" to another green node.
+    // We need to talk about Salsa to fully understand what this is.
     Node { children: Vec<GreenId>, width: TextWidth },
 }
 ```
@@ -150,9 +158,15 @@ pub trait TypedSyntaxNode {
     const OPTIONAL_KIND: Option<SyntaxKind>;
     type StablePtr: TypedStablePtr;
     type Green;
+
+    // Builds `<missing>` green node of this type.
     fn missing(db: &dyn SyntaxGroup) -> Self::Green;
+
+    // Conversions from/to.
     fn from_syntax_node(db: &dyn SyntaxGroup, node: SyntaxNode) -> Self;
     fn as_syntax_node(&self) -> SyntaxNode;
+
+    // Stable pointers, see next section.
     fn stable_ptr(&self) -> Self::StablePtr;
 }
 ```
@@ -198,26 +212,61 @@ Now we need to teach our lexer to recognize the new syntax, because we've added 
 
 **Teach the Cairo lexer to recognize the `caesar` keyword.**
 
-Do not forget to update lexer tests and make sure they pass!
+Remember to update lexer tests and make sure they pass!
 
 # Chapter 3: Testing framework
+
+The compiler codebase makes extensive use of snapshot testing.
+
+> Snapshots tests (also sometimes called approval tests) are tests that assert values against a reference value (the
+> snapshot). This is similar to how assert_eq! lets you compare a value against a reference value but unlike simple
+> string
+> assertions, snapshot tests let you test against complex values and come with comprehensive tools to review changes.
+>
+> Snapshot tests are particularly useful if your reference values are very large or change often.
+>
+> _~[`insta`](https://docs.rs/insta/latest/insta/#what-are-snapshot-tests) crate documentation_
 
 `crates/cairo-lang-semantic/src/expr/test.rs`:
 
 ```rust
+// This macro creates a set of #[test] functions that will run our snapshot tests.
 cairo_lang_test_utils::test_file_test!(
+    // Name of a module wrapping all test functions.
     expr_diagnostics,
+    
+    // Base path to snapshot fixtures.
     "src/expr/test_data",
 
+    // List of test functions (pairs name-fixture file name).
+    // Fixtures often have no file extension, but I recommend using *.txt for new test suites.
     {
         assignment: "assignment",
         attributes: "attributes",
         constant: "constant",
         // ...
     },
+    
+    // A name of a function that will run tests ("test runner").
+    // For some complex use-cases you may create a stateful structure here,
+    // but this is rare.
     test_function_diagnostics
 );
 
+// A little bit of magic is happening here.
+// The runner function takes a set of `inputs`, sometimes also `args`
+// and produces a `result` that mostly consists of an `output`.
+// Fixtures are made out of several tests, each being composed of `sections`.
+//
+// All sections that exist in the fixture *at the moment of loading the test* are coming as `inputs`.
+// The goal of the runner function is to produce a set of sections (`output`) to be compared with `inputs`.
+// In test mode, the framework checks if `output` is a strict subset of `inputs` (asserting equality).
+// In `CAIRO_FIX_TESTS=1` mode, output merged into input and the fixture file is overwritten.
+//
+// This has some important consequences:
+// * You rarely `assert_eq!` in runner functions.
+// * Renaming a section will probably make it stay there forever, unused, until the fixture is manually cleared.
+// * Input sections are not visually different from expectation sections, so make sure you name your sections clearly.
 pub fn test_function_diagnostics(
     inputs: &OrderedHashMap<String, String>,
     args: &OrderedHashMap<String, String>,
@@ -244,11 +293,14 @@ pub fn test_function_diagnostics(
 `crates/cairo-lang-semantic/src/expr/test_data/attributes`:
 
 ```
-//! > Test instantiation.
+//! > Test instantiation.       ← this is functioning just as a comment
 
 //! > test_runner_name
+                           ↓ everything here comes as `args`
 test_function_diagnostics(expect_diagnostics: true)
+     ↑ must match source code
 
+         ↓ this is name of a section
 //! > function
 fn foo() {
     MyStruct {};
@@ -280,7 +332,7 @@ error: Can not create instances of phantom types.
 
 
 //! > ==========================================================================
-
+         ↑ this is test separator
 ...
 ```
 
@@ -333,6 +385,33 @@ Using Salsa is as easy as 1, 2, 3...
    the inputs/queries you will be using. The query struct will contain
    the storage for all the inputs/queries and may also contain
    anything else that your code needs (e.g., configuration data).
+
+## Interning
+
+> **Interning** is a technique used to store only one copy of each distinct value, typically a string or other immutable
+> data, to save memory and improve performance. When a value is interned, it is stored in a global or shared table, and
+> subsequent requests for the same value return a reference to the existing entry rather than creating a new object.
+> This
+> ensures that identical values share the same memory location, reducing redundancy and enabling faster comparisons.
+>
+> ~Copilot
+
+> - We introduce `#[salsa::interned]` queries which convert a `Key` type
+    > into a numeric index of type `Value`, where `Value` is either the
+    > type `InternId` (defined by a salsa) or some newtype thereof.
+> - Each interned query `foo` also produces an inverse `lookup_foo`
+    > method that converts back from the `Value` to the `Key` that was
+    > interned.
+> - The `InternId` type (defined by salsa) is basically a newtype'd integer,
+    > but it internally uses `NonZeroU32` to enable space-saving optimizations
+    > in memory layout.
+> - The `Value` types can be any type that implements the
+    > `salsa::InternIndex` trait, also introduced by this RFC. This trait
+    > has two methods, `from_intern_id` and `as_intern_id`.
+>
+> ~Intern Queries RFC
+
+More info: <https://github.com/salsa-rs/salsa/blob/v0.17.0-pre.2/book/src/rfcs/RFC0002-Intern-Queries.md>
 
 ## Salsa use in Cairo compiler
 
