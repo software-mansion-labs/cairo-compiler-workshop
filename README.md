@@ -6,7 +6,7 @@ The goal of this workshop is to introduce attendees to the codebase of
 the [Cairo](https://github.com/starkware-libs/cairo) compiler, its architecture, and the process of contributing to it.
 
 Attendees are expected to have a great proficiency in Rust and a basic understanding of compilation theory.
-The compiler codebase is not the easy one, and it extensively uses latest compiler techniques that probably haven't been
+The compiler codebase is not an easy one, and it extensively uses the latest compiler techniques that probably haven't been
 taught in your university yet.
 
 > [!IMPORTANT]
@@ -35,10 +35,10 @@ Here are some protips from a seasoned compiler contributor:
    overwhelmed at first.
    If you're stuck, don't hesitate to ask for help on Slack or Telegram.
 2. Use [Reviewable](https://reviewable.io/) for code review **exclusively**.
-   You will make everybody's life miserable when you'll comment directly on GitHub.
+   You will make everybody's life miserable when you comment directly on GitHub.
    Don't be afraid of its white UI, it's just a color, but there's a configuration option to enable the dark mode.
-3. Split your work into very small, self-contained commits and create separate PR for each.
-    1. Do not split by implementation chunks, but split by logical changes.
+3. Split your work into very small, self-contained commits and create a separate PR for each.
+    1. Do not split by implementation chunks but split by logical changes.
     2. It's good to include a change in a test suite that is affected by your change in each PR.
     3. You can use `TODO` comments or `todo!()` macro to mark stuff that you'll resolve in following PRs in the stack.
     4. You can also start with minimal tests and do separate PRs for test suite expansion later on.
@@ -49,13 +49,13 @@ Here are some protips from a seasoned compiler contributor:
 # Chapter 1: Compiler architecture
 
 - The Cairo compiler is built as a library that is split into numerous purpose-focused crates.
-- There's crate for filesystem ops & collecting compiler input, there's one with parser, another one with syntax
+- There's crate for filesystem ops & collecting compiler input; there's one with parser, another one with syntax
   definition and a series of crates for code analysis and generation.
 - One could identify the following stages of code compilation:
     - Filesystem access
     - Lexing
     - Parsing
-    - Semantic analysis - taking syntax trees and producing sets of simple objects telling what they are.
+    - Semantic analysis—taking syntax trees and producing sets of simple objects telling what they are.
     - Lowering: taking semantic objects for functions and producing a _Control Flow Graph_.
     - Sierra generation
 - The root crate for the compiler is called `cairo-lang-compiler`, and it provides a struct called `RootDatabase` which
@@ -64,7 +64,7 @@ Here are some protips from a seasoned compiler contributor:
     - This is serializable from `cairo_project.toml` files.
     - This is implemented in `cairo-lang-project` crate.
     - Scarb and CairoLS are working differently.
-- There is a set of binaries present in compiler repository that provide compiler functionality as small programs.
+- There is a set of binaries present in the compiler repository that provide compiler functionality as small programs.
     - They are largely made with Starkware internal use in mind.
     - As you all know, use Scarb.
 - While there are efforts to maintain backward compatibility of Cairo as a language, the Cairo compiler library API is
@@ -72,16 +72,16 @@ Here are some protips from a seasoned compiler contributor:
 
 # Exercise 1: Adding new grammar production
 
-Thorough this workshop we will do a set exercises which will introduce you to the Cairo compiler codebase.
-We will add a new syntax to the language and implement it all the way down (almost) to Sierra generation and E2E tests.
-Following our wise-man's advices from the _before we start_ section, we will split our work into small exercises that
+Through this workshop we will do a set exercise that will introduce you to the Cairo compiler codebase.
+We will add a new syntax to the language and implement it almost all the way to Sierra generation and E2E tests.
+Following our wise-man's advice from the _before we start_ section, we will split our work into small exercises that
 will
 nicely fit the small PRs principle.
 
 Our new syntax is: **a `caesar` expression**.
 It will take a literal short string and will encrypt it using a Caesar cipher in compile-time.
 Because of time constraints, we will limit ourselves to just accept literal short strings.
-Const-evaluation of arbitrary expressions is not our goal, though it's a nice homework idea!
+Constant evaluation of arbitrary expressions is not our goal, though it's a nice homework idea!
 
 BNF:
 
@@ -147,9 +147,9 @@ pub enum GreenNodeDetails {
 }
 ```
 
-- Green nodes is an AST representation that is not strictly typed:
-- It has no accessors, it's for example hard to find out function name in function definition subtree.
-- But it is trivial to traverse in various directions and to manipulate, e.g. in formatter.
+- Green nodes are an AST representation that is not strictly typed:
+- It has no accessors, it's, for example, hard to find out the function name in the function definition subtree.
+- But it is trivial to traverse in various directions and to manipulate, e.g., in formatter.
 
 ## Typed syntax tree
 
@@ -171,7 +171,7 @@ pub trait TypedSyntaxNode {
 }
 ```
 
-- On top of green (sub)tree, a typed AST can be built.
+- On top of the green (sub) tree, a typed AST can be built.
 - There are accessors, but arbitrary traversal is hard.
 - Great for picking precise information from the tree.
 
@@ -218,10 +218,10 @@ Remember to update lexer tests and make sure they pass!
 
 The compiler codebase makes extensive use of snapshot testing.
 
-> Snapshots tests (also sometimes called approval tests) are tests that assert values against a reference value (the
-> snapshot). This is similar to how assert_eq! lets you compare a value against a reference value but unlike simple
+> Snapshot tests (also sometimes called approval tests) are tests that assert values against a reference value (the
+> snapshot). This is similar to how `assert_eq!` lets you compare a value against a reference value but unlike simple
 > string
-> assertions, snapshot tests let you test against complex values and come with comprehensive tools to review changes.
+> assertions, snapshot tests let you test it against complex values and come with comprehensive tools to review changes.
 >
 > Snapshot tests are particularly useful if your reference values are very large or change often.
 >
@@ -345,46 +345,52 @@ Try to think of as many edge cases as possible.
 
 # Chapter 4: Salsa
 
-> Salsa is a Rust framework for writing incremental, on-demand programs -- these are programs that want to adapt to
+> Salsa is a Rust framework for writing incremental, on-demand programs—these are programs that want to adapt to
 > changes in their inputs, continuously producing a new output that is up-to-date. Salsa is based on the incremental
 > recompilation techniques that we built for rustc, and many (but not all) of its users are building compilers or other
 > similar tooling.
+>
+> ~Salsa Book
 
 > [!WARNING]
 > Cairo compiler is using Salsa `0.16.1`.
-> This version is quite old and the API has changed a lot since then.
+> This version is quite old, and the API has changed a lot since then.
 > Especially, the hosted Salsa Book is now describing the total rewrite of Salsa: Salsa 3, formerly Salsa 2022.
 >
 > You can browse the old book here: <https://github.com/salsa-rs/salsa/tree/754eea8b5f8a31b1100ba313d59e41260b494225>
 
 ## Key idea
 
-The key idea of `salsa` is that you define your program as a set of
-**queries**. Every query is used like a function `K -> V` that maps from
-some key of type `K` to a value of type `V`. Queries come in two basic
-varieties:
-
-- **Inputs**: the base inputs to your system. You can change these
-  whenever you like.
-- **Functions**: pure functions (no side effects) that transform your
-  inputs into other values. The results of queries are memoized to
-  avoid recomputing them a lot. When you make changes to the inputs,
-  we'll figure out (fairly intelligently) when we can re-use these
-  memoized values and when we have to recompute them.
+> The key idea of `salsa` is that you define your program as a set of
+> **queries**. Every query is used like a function `K -> V` that maps from
+> some key of type `K` to a value of type `V`. Queries come in two basic
+> varieties:
+>
+> - **Inputs**: the base inputs to your system. You can change these
+    whenever you like.
+> - **Functions**: pure functions (no side effects) that transform your
+    inputs into other values. The results of queries are memoized to
+    avoid recomputing them a lot. When you make changes to the inputs,
+    we'll figure out (fairly intelligently) when we can re-use these
+    memoized values and when we have to recompute them.
+> 
+> ~Salsa Book
 
 ## How to use Salsa in three easy steps
 
-Using Salsa is as easy as 1, 2, 3...
-
-1. Define one or more **query groups** that contain the inputs
-   and queries you will need. We'll start with one such group, but
-   later on you can use more than one to break up your system into
-   components (or spread your code across crates).
-2. Define the **query functions** where appropriate.
-3. Define the **database**, which contains the storage for all
-   the inputs/queries you will be using. The query struct will contain
-   the storage for all the inputs/queries and may also contain
-   anything else that your code needs (e.g., configuration data).
+> Using Salsa is as easy as 1, 2, 3...
+> 
+> 1. Define one or more **query groups** that contain the inputs
+     and queries you will need. We'll start with one such group, but
+     later on you can use more than one to break up your system into
+     components (or spread your code across crates).
+> 2. Define the **query functions** where appropriate.
+> 3. Define the **database**, which contains the storage for all
+     the inputs/queries you will be using. The query struct will contain
+     the storage for all the inputs/queries and may also contain
+     anything else that your code needs (e.g., configuration data).
+>
+> ~Salsa Book
 
 ## Interning
 
@@ -493,7 +499,7 @@ outdated:
 - [How Salsa Works](https://youtu.be/_muY4HjSqVw), which gives a high-level
   introduction to the key concepts involved and shows how to use Salsa;
 - [Salsa In More Depth](https://www.youtube.com/watch?v=i_IhACacPRY), which digs
-  into the incremental algorithm and explains -- at a high-level -- how Salsa is
+  into the incremental algorithm and explains (at a high level) how Salsa is
   implemented.
 
 # Chapter 5: Semantic model
@@ -522,7 +528,7 @@ Do not encrypt the value here, just store input.
 Don't forget about adding tests! Just a happy-path is fine for us here.
 
 > [!TIP]
-> You can copy quite a lot from short string semantic model here.
+> You can copy quite a lot from a short string semantic model here.
 
 > [!TIP]
 > You will likely stumble upon a cryptic compilation error here.
@@ -546,7 +552,7 @@ pub struct AnalysisDatabase;
 
 1. CairoLS ends on the semantic model.
 2. It uses its own Salsa database, `AnalysisDatabase`, which has a subset of compiler queries, but adds some extra ones.
-3. CairoLS is doing a lot of reverse queries, i.e. it is asking for things bottom-top, which is not happening in the
+3. CairoLS is doing a lot of reverse queries, i.e., it is asking for things bottom-top, which is not happening in the
    compiler.
 4. The usual flow is code location → AST → semantic model → analysis → semantic model → AST → code location.
 
@@ -554,7 +560,7 @@ pub struct AnalysisDatabase;
 
 - Lowering is a process of transforming semantic models of functions into a _Control Flow Graph_ (CFG).
 - CFG has a very simple, almost Sierra-like structure.
-    - It's composed of _blocks_ (sometimes called _basic blocks_, for example in LLVM).
+    - It's composed of _blocks_ (sometimes called _basic blocks_, for example, in LLVM).
         - Blocks are sequences of statements, which have _Single Static Assignment_ (SSA) form.
         - Blocks are connected with _jumps_ that can only exist at the end of the block.
 - The CFG is a very good representation for optimization.
@@ -632,9 +638,3 @@ Congratulations! You've made it to the final exercise.
 This one is trivial but very satisfying.
 
 **Add an E2E test for your new syntax.**
-
----
-
-# Appendix: Credits
-
-Parts of Salsa information is copied verbatim from the Salsa Book.
