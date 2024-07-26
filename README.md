@@ -394,7 +394,7 @@ Using Salsa is as easy as 1, 2, 3...
 > This
 > ensures that identical values share the same memory location, reducing redundancy and enabling faster comparisons.
 >
-> ~Copilot
+> ~LLM
 
 > - We introduce `#[salsa::interned]` queries which convert a `Key` type into a numeric index of type `Value`,
     where `Value` is either the type `InternId` (defined by a salsa) or some newtype thereof.
@@ -411,6 +411,8 @@ More info: <https://github.com/salsa-rs/salsa/blob/v0.17.0-pre.2/book/src/rfcs/R
 
 ## Salsa use in Cairo compiler
 
+Almost entirety of compiler machinery is written as Salsa queries and is encompassed into a `RootDatabase`.
+
 ```rust
 #[salsa::database(
     DefsDatabase,
@@ -423,6 +425,9 @@ More info: <https://github.com/salsa-rs/salsa/blob/v0.17.0-pre.2/book/src/rfcs/R
 )]
 pub struct RootDatabase;
 ```
+
+Here is a gist of queries code from the compiler,
+this should be self-descriptive without all the clutter that exists in real code:
 
 ```rust
 #[salsa::query_group(FilesDatabase)]
@@ -493,7 +498,19 @@ outdated:
 
 # Chapter 5: Semantic model
 
-TODO
+> The purpose of a "semantic model"
+> in the Cairo compiler is to provide a structured representation of the program's meaning.
+> It involves analyzing the source code to understand its structure,
+> types, scopes and relationships between different parts of the code.
+> This model is used for various tasks such as type checking, resolving identifiers,
+> and ensuring that the code adheres to the language's rules and constraints.
+> It detects semantic errors.
+>
+> ~LLM
+
+The `SemanticGroup` is a big bag of invaluable queries that allow analyzing the code.
+If you need to know anything about the code,
+this is probably a good starting point for looking for a method of computing required info.
 
 # Exercise 4: Semantic model
 
