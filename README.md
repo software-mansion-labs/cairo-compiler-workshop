@@ -396,18 +396,14 @@ Using Salsa is as easy as 1, 2, 3...
 >
 > ~Copilot
 
-> - We introduce `#[salsa::interned]` queries which convert a `Key` type
-    > into a numeric index of type `Value`, where `Value` is either the
-    > type `InternId` (defined by a salsa) or some newtype thereof.
-> - Each interned query `foo` also produces an inverse `lookup_foo`
-    > method that converts back from the `Value` to the `Key` that was
-    > interned.
-> - The `InternId` type (defined by salsa) is basically a newtype'd integer,
-    > but it internally uses `NonZeroU32` to enable space-saving optimizations
-    > in memory layout.
-> - The `Value` types can be any type that implements the
-    > `salsa::InternIndex` trait, also introduced by this RFC. This trait
-    > has two methods, `from_intern_id` and `as_intern_id`.
+> - We introduce `#[salsa::interned]` queries which convert a `Key` type into a numeric index of type `Value`,
+    where `Value` is either the type `InternId` (defined by a salsa) or some newtype thereof.
+> - Each interned query `foo` also produces an inverse `lookup_foo` method that converts back from the `Value` to
+    the `Key` that was interned.
+> - The `InternId` type (defined by salsa) is basically a newtype'd integer, but it internally uses `NonZeroU32` to
+    enable space-saving optimizations in memory layout.
+> - The `Value` types can be any type that implements the `salsa::InternIndex` trait, also introduced by this RFC. This
+    trait has two methods, `from_intern_id` and `as_intern_id`.
 >
 > ~Intern Queries RFC
 
