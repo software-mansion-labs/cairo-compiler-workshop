@@ -1,12 +1,13 @@
 # Cairo Compiler Contributor Workshop
 
-_Marek Kaput (Software Mansion), 2024-07-22_
+_Marek Kaput (Software Mansion), 2024-08-07_
 
 The goal of this workshop is to introduce attendees to the codebase of
 the [Cairo](https://github.com/starkware-libs/cairo) compiler, its architecture, and the process of contributing to it.
 
 Attendees are expected to have a great proficiency in Rust and a basic understanding of compilation theory.
-The compiler codebase is not an easy one, and it extensively uses the latest compiler techniques that probably haven't been
+The compiler codebase is not an easy one, and it extensively uses the latest compiler techniques that probably haven't
+been
 taught in your university yet.
 
 > [!IMPORTANT]
@@ -58,12 +59,21 @@ Here are some protips from a seasoned compiler contributor:
     - Semantic analysis—taking syntax trees and producing sets of simple objects telling what they are.
     - Lowering: taking semantic objects for functions and producing a _Control Flow Graph_.
     - Sierra generation
+    - _We will talk about how these stages are coded in a chapter about Salsa._
 - The root crate for the compiler is called `cairo-lang-compiler`, and it provides a struct called `RootDatabase` which
   is the heart of the compiler.
 - The most important bits from compiler output can (but doesn't have to) be a `Project` structure
     - This is serializable from `cairo_project.toml` files.
     - This is implemented in `cairo-lang-project` crate.
-    - Scarb and CairoLS are working differently.
+    - Scarb and CairoLS are working differently:
+        - Scarb basically takes `Scarb.toml`, does its magic and produces a `Project` struct that is used for
+          initializing the `RootDatabase.
+        - CairoLS is (will be, this is in progress at the time of writing this workshop) maintaining its own graph of
+          crates and their interdependencies:
+            - It is populated from reading any `cairo_project.toml` or `Scarb.toml` files it encounters (the latter is
+              analyzed via `scarb metadata` command).
+            - State of this graph is then directly fed into LS' `RootDatabase` counterpart inputs, low-level style,
+              there's no `Project` being built at any time.
 - There is a set of binaries present in the compiler repository that provide compiler functionality as small programs.
     - They are largely made with Starkware internal use in mind.
     - As you all know, use Scarb.
@@ -373,13 +383,13 @@ Try to think of as many edge cases as possible.
     avoid recomputing them a lot. When you make changes to the inputs,
     we'll figure out (fairly intelligently) when we can re-use these
     memoized values and when we have to recompute them.
-> 
+>
 > ~Salsa Book
 
 ## How to use Salsa in three easy steps
 
 > Using Salsa is as easy as 1, 2, 3...
-> 
+>
 > 1. Define one or more **query groups** that contain the inputs
      and queries you will need. We'll start with one such group, but
      later on you can use more than one to break up your system into
@@ -432,6 +442,34 @@ Almost entirety of compiler machinery is written as Salsa queries and is encompa
 pub struct RootDatabase;
 ```
 
+Particular query groups resemble phases of compilation. Sorted topologically by query group dependencies:
+
+1. `FilesGroup`:
+    1. Stores all crucial **inputs** for the compiler:
+        1. list of crates to compile and their configuration,
+        2. overrides of file contents,
+        3. `#[cfg]` item set,
+        4. compilation flags (pretty dead concept nowadays).
+    2. Provides queries for reading file contents.
+2. `SyntaxGroup`:
+    1. Interns AST nodes.
+    2. Provides basic queries for AST traversal.
+3. `ParserGroup`:
+    1. Provides queries for parsing files (i.e. `FileId -> SyntaxNode`).
+4. `DefsGroup`:
+    1. Provides queries that extract unique identifiers of nameable items: modules, functions, constants, etc.
+    2. Provides basic queries for traversing nameable item relations, for
+       example `crate -> all its files`, `file -> modules`, `module -> submodules`, `module -> fns`.
+    3. Compiler plugin/macro expansion is also hidden here.
+5. `SemanticGroup`:
+    1. Provides queries for actually analyzing the code.
+6. `LoweringGroup`:
+    1. The actual Cairo code and its semantic model are too complex to be directly optimized and used for generating
+       Sierra code, queries here are responsible for doing appropriate transformations/preprocessing before doing
+       further work.
+7. `SierraGenGroup`:
+    1. Actual Sierra code generation.
+
 Here is a gist of queries code from the compiler,
 this should be self-descriptive without all the clutter that exists in real code:
 
@@ -443,7 +481,7 @@ pub trait FilesGroup {
 
     // ...
 
-    /// Main input of the project. Lists all the crates configurations.
+    /// Main input of the project. Lists all crates configurations.
     #[salsa::input]
     fn crate_configs(&self) -> Arc<OrderedHashMap<CrateId, CrateConfiguration>>;
 
@@ -517,6 +555,16 @@ outdated:
 The `SemanticGroup` is a big bag of invaluable queries that allow analyzing the code.
 If you need to know anything about the code,
 this is probably a good starting point for looking for a method of computing required info.
+
+This is where type checking, name resolution and other semantic analysis are happening.
+
+Queries of the `SemanticGroup` answer questions like the following:
+
+1. _What does `x` refer to?_
+2. _What are the members of struct `S`?_
+3. _Is there am impl of trait `T` for enum `E`?_
+4. _What is the type of expression `2 + 2`?_
+5. _How function `foo<A, B, C>()` should be monomorphized at this usage place?_
 
 # Exercise 4: Semantic model
 
