@@ -46,6 +46,9 @@ Here are some protips from a seasoned compiler contributor:
 4. If you have write access to the repository:
     * Familiarize with [git spr](https://github.com/ejoffe/spr).
     * Otherwise, you're out of luck and familiarize with `git rebase`.
+5. This codebase relies on nightly features of rustfmt, clippy and rustdoc.
+    * Use scripts in the `scripts/` directory for running these tools,
+    * or configure your IDE to use nightly toolchain when doing these tasks.
 
 # Chapter 1: Compiler architecture
 
@@ -115,7 +118,7 @@ We want to generate the following CASM:
 ret;
 ```
 
---- 
+---
 
 **Add a new expression production to the Cairo grammar.**
 
@@ -244,7 +247,7 @@ The compiler codebase makes extensive use of snapshot testing.
 cairo_lang_test_utils::test_file_test!(
     // Name of a module wrapping all test functions.
     expr_diagnostics,
-    
+
     // Base path to snapshot fixtures.
     "src/expr/test_data",
 
@@ -256,7 +259,7 @@ cairo_lang_test_utils::test_file_test!(
         constant: "constant",
         // ...
     },
-    
+
     // A name of a function that will run tests ("test runner").
     // For some complex use-cases you may create a stateful structure here,
     // but this is rare.
