@@ -370,7 +370,7 @@ Try to think of as many edge cases as possible.
 > This version is quite old, and the API has changed a lot since then.
 > Especially, the hosted Salsa Book is now describing the total rewrite of Salsa: Salsa 3, formerly Salsa 2022.
 >
-> You can browse the old book here: <https://github.com/salsa-rs/salsa/tree/754eea8b5f8a31b1100ba313d59e41260b494225>
+> You can browse the old book here: <https://murek.dev/salsa-book-0.16/>
 
 ## Key idea
 
