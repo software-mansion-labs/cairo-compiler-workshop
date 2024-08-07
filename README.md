@@ -1,6 +1,6 @@
 # Cairo Compiler Contributor Workshop
 
-_Marek Kaput (Software Mansion), 2024-08-07_
+_[Marek Kaput](https://murek.dev) ([Software Mansion](https://swmansion.com)), 2024-08-07_
 
 The goal of this workshop is to introduce attendees to the codebase of
 the [Cairo](https://github.com/starkware-libs/cairo) compiler, its architecture, and the process of contributing to it.
